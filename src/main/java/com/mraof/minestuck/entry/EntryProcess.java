@@ -25,7 +25,6 @@ import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.player.ServerPlayerEntity;
 import net.minecraft.nbt.CompoundNBT;
 import net.minecraft.tileentity.TileEntity;
-import net.minecraft.util.math.AxisAlignedBB;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.text.StringTextComponent;
@@ -66,6 +65,7 @@ public class EntryProcess
 	private int zDiff;
 	private int topY;
 	private BlockPos origin;
+	private EntryPositioning positioning;
 	private boolean creative;
 	private HashSet<BlockMove> blockMoves;
 	
@@ -151,6 +151,7 @@ public class EntryProcess
 		int y = origin.getY();
 		int z = origin.getZ();
 		this.origin = origin;
+		positioning = new EntryPositioning.Default(origin);
 		
 		creative = player.interactionManager.isCreative();
 		
@@ -245,49 +246,41 @@ public class EntryProcess
 		blockMoves2.clear();
 	}
 	
-	private void finalizeDestination(Entity player, ServerWorld worldserver0, ServerWorld worldserver1)
+	private void finalizeDestination(ServerPlayerEntity player, ServerWorld originWorld, ServerWorld landWorld)
 	{
-		if(player instanceof ServerPlayerEntity)
 		{
 			int x = origin.getX();
 			int y = origin.getY();
 			int z = origin.getZ();
 			
 			LOGGER.debug("Teleporting entities...");
-			//The fudge here is to ensure that the AABB will always contain every entity meant to be moved.
-			// As entities outside the radius will be excluded from transport anyway, this is fine.
-			AxisAlignedBB entityTeleportBB = player.getBoundingBox().grow(artifactRange + 0.5);
-			List<Entity> list = worldserver0.getEntitiesWithinAABBExcludingEntity(player, entityTeleportBB);
+			List<Entity> list = positioning.getOtherEntitiesToTeleport(player, originWorld);
 			Iterator<Entity> iterator = list.iterator();
 			while (iterator.hasNext())
 			{
 				Entity e = iterator.next();
-				if(origin.distanceSq(e.getPosX(), e.getPosY(), e.getPosZ(), true) <= artifactRange*artifactRange)
+				if(MinestuckConfig.SERVER.entryCrater.get() || e instanceof PlayerEntity || !creative && e instanceof ItemEntity)
 				{
-					if(MinestuckConfig.SERVER.entryCrater.get() || e instanceof PlayerEntity || !creative && e instanceof ItemEntity)
+					if(e instanceof PlayerEntity && ServerEditHandler.getData((PlayerEntity) e) != null)
+						ServerEditHandler.reset(ServerEditHandler.getData((PlayerEntity) e));
+					else
 					{
-						if(e instanceof PlayerEntity && ServerEditHandler.getData((PlayerEntity) e) != null)
-							ServerEditHandler.reset(ServerEditHandler.getData((PlayerEntity) e));
-						else
-						{
-							Teleport.teleportEntity(e, worldserver1, e.getPosX() + xDiff, e.getPosY() + yDiff, e.getPosZ() + zDiff);
-						}
-						//These entities should no longer be in the world, and this list is later used for entities that *should* remain.
-						iterator.remove();
+						Teleport.teleportEntity(e, landWorld, e.getPosX() + xDiff, e.getPosY() + yDiff, e.getPosZ() + zDiff);
 					}
-					else	//Copy instead of teleport
+					//These entities should no longer be in the world, and this list is later used for entities that *should* remain.
+					iterator.remove();
+				} else    //Copy instead of teleport
+				{
+					Entity newEntity = e.getType().create(landWorld);
+					if(newEntity != null)
 					{
-						Entity newEntity = e.getType().create(worldserver1);
-						if (newEntity != null)
-						{
-							CompoundNBT nbttagcompound = new CompoundNBT();
-							e.writeWithoutTypeId(nbttagcompound);
-							nbttagcompound.remove("Dimension");
-							newEntity.read(nbttagcompound);
-							newEntity.dimension = worldserver1.getDimension().getType();
-							newEntity.setPosition(newEntity.getPosX() + xDiff, newEntity.getPosY() + yDiff, newEntity.getPosZ() + zDiff);
-							worldserver1.addEntity(newEntity);
-						}
+						CompoundNBT nbttagcompound = new CompoundNBT();
+						e.writeWithoutTypeId(nbttagcompound);
+						nbttagcompound.remove("Dimension");
+						newEntity.read(nbttagcompound);
+						newEntity.dimension = landWorld.getDimension().getType();
+						newEntity.setPosition(newEntity.getPosX() + xDiff, newEntity.getPosY() + yDiff, newEntity.getPosZ() + zDiff);
+						landWorld.addEntity(newEntity);
 					}
 				}
 			}
@@ -295,14 +288,14 @@ public class EntryProcess
 			LOGGER.debug("Removing original blocks");
 			for(BlockMove move : blockMoves)
 			{
-				removeTileEntity(worldserver0, move.source, creative);	//Tile entities need special treatment
+				removeTileEntity(originWorld, move.source, creative);	//Tile entities need special treatment
 				
-				if(MinestuckConfig.SERVER.entryCrater.get() && worldserver0.getBlockState(move.source).getBlock() != Blocks.BEDROCK)
+				if(MinestuckConfig.SERVER.entryCrater.get() && originWorld.getBlockState(move.source).getBlock() != Blocks.BEDROCK)
 				{
 					if(move.update)
-						worldserver0.setBlockState(move.source, Blocks.AIR.getDefaultState(), Constants.BlockFlags.DEFAULT);
+						originWorld.setBlockState(move.source, Blocks.AIR.getDefaultState(), Constants.BlockFlags.DEFAULT);
 					else
-						worldserver0.setBlockState(move.source, Blocks.AIR.getDefaultState(), Constants.BlockFlags.BLOCK_UPDATE);
+						originWorld.setBlockState(move.source, Blocks.AIR.getDefaultState(), Constants.BlockFlags.BLOCK_UPDATE);
 				}
 			}
 			blockMoves.clear();
@@ -314,7 +307,7 @@ public class EntryProcess
 			if(!creative || MinestuckConfig.SERVER.entryCrater.get())
 			{
 				LOGGER.debug("Removing entities left in the crater...");
-				List<Entity> removalList = worldserver0.getEntitiesWithinAABBExcludingEntity(player, entityTeleportBB);
+				List<Entity> removalList = positioning.getOtherEntitiesToTeleport(player, originWorld);
 				
 				//We check if the old list contains the entity, because that means it was there before the entities were teleported and blocks removed.
 				// This can be caused by them being outside the Entry radius but still within the AABB,
@@ -341,11 +334,11 @@ public class EntryProcess
 			}
 			
 			LOGGER.debug("Placing gates...");
-			placeGates(worldserver1);
+			placeGates(landWorld);
 			
-			MSExtraData.get(worldserver1).addPostEntryTask(new PostEntryTask(worldserver1.getDimension().getType(), x + xDiff, y + yDiff, z + zDiff, artifactRange, (byte) 0));
+			MSExtraData.get(landWorld).addPostEntryTask(new PostEntryTask(landWorld.getDimension().getType(), x + xDiff, y + yDiff, z + zDiff, artifactRange, (byte) 0));
 			
-			MSDimensions.getLandInfo(worldserver1).setSpawn(MathHelper.floor(player.getPosY()));
+			MSDimensions.getLandInfo(landWorld).setSpawn(MathHelper.floor(player.getPosY()));
 			
 			LOGGER.info("Entry finished");
 		}
