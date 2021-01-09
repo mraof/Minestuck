@@ -84,6 +84,19 @@ public class EntryProcess
 				//Only performs Entry if you have no connection, haven't Entered, or you're not in a Land and additional Entries are permitted.
 				if(!c.isPresent() || !c.get().hasEntered() || !MinestuckConfig.SERVER.stopSecondEntry.get() && !MSDimensions.isLandDimension(player.world.getDimension().getType()))
 				{
+					ServerWorld oldWorld = (ServerWorld) player.world;
+					
+					int x = origin.getX();
+					int y = origin.getY();
+					int z = origin.getZ();
+					this.origin = player.getPosition();
+					positioning = new EntryPositioning.Default(origin);
+					
+					topY = MinestuckConfig.SERVER.adaptEntryBlockHeight.get() ? getTopHeight(oldWorld, x, y, z) : y + artifactRange;
+					yDiff = 127 - topY;
+					xDiff = 0 - x;
+					zDiff = 0 - z;
+					
 					if(!canModifyEntryBlocks(player.world, player))
 					{
 						player.sendMessage(new StringTextComponent("You are not allowed to enter here."));
@@ -112,14 +125,13 @@ public class EntryProcess
 					}
 					else
 					{
-						ServerWorld oldWorld = (ServerWorld) player.world;
 						ServerWorld newWorld = Objects.requireNonNull(player.getServer()).getWorld(landDimension);
 						if(newWorld == null)
 						{
 							return;
 						}
 						
-						if(this.prepareDestination(player.getPosition(), player, oldWorld))
+						if(this.prepareDestination(player, oldWorld))
 						{
 							moveBlocks(oldWorld, newWorld);
 							if(Teleport.teleportEntity(player, newWorld) != null)
@@ -141,80 +153,55 @@ public class EntryProcess
 		}
 	}
 	
-	private boolean prepareDestination(BlockPos origin, ServerPlayerEntity player, ServerWorld worldserver0)
+	private boolean foundComputer = false;
+	
+	private boolean prepareDestination(ServerPlayerEntity player, ServerWorld worldserver0)
 	{
 		
 		blockMoves = new HashSet<>();
 		
 		LOGGER.info("Starting entry for player {}", player.getName().getFormattedText());
-		int x = origin.getX();
-		int y = origin.getY();
-		int z = origin.getZ();
-		this.origin = origin;
-		positioning = new EntryPositioning.Default(origin);
 		
 		creative = player.interactionManager.isCreative();
 		
-		topY = MinestuckConfig.SERVER.adaptEntryBlockHeight.get() ? getTopHeight(worldserver0, x, y, z) : y + artifactRange;
-		yDiff = 127 - topY;
-		xDiff = 0 - x;
-		zDiff = 0 - z;
-		
 		LOGGER.debug("Loading block movements...");
-		long time = System.currentTimeMillis();
-		int bl = 0;
-		boolean foundComputer = false;
-		for(int blockX = x - artifactRange; blockX <= x + artifactRange; blockX++)
-		{
-			int zWidth = (int) Math.sqrt((artifactRange+0.5) * (artifactRange+0.5) - (blockX - x) * (blockX - x));
-			for(int blockZ = z - zWidth; blockZ <= z + zWidth; blockZ++)
+		
+		if(!positioning.forEachBlockTry(pos -> {
+			if(pos.getY() <= topY)
 			{
-				Chunk c = worldserver0.getChunk(blockX >> 4, blockZ >> 4);
+				IChunk c = worldserver0.getChunk(pos);
+				BlockPos pos1 = pos.add(xDiff, yDiff, zDiff);
+				BlockState block = worldserver0.getBlockState(pos);
+				TileEntity te = worldserver0.getTileEntity(pos);
 				
-				int height = (int) Math.sqrt(artifactRange * artifactRange - (((blockX - x) * (blockX - x) + (blockZ - z) * (blockZ - z)) / 2F));
+				Block gotBlock = block.getBlock();
 				
-				int blockY;
-				for(blockY = Math.max(0, y - height); blockY <= Math.min(topY, y + height); blockY++)
+				if(gotBlock == Blocks.BEDROCK || gotBlock == Blocks.NETHER_PORTAL)
 				{
-					BlockPos pos = new BlockPos(blockX, blockY, blockZ);
-					BlockPos pos1 = pos.add(xDiff, yDiff, zDiff);
-					BlockState block = worldserver0.getBlockState(pos);
-					TileEntity te = worldserver0.getTileEntity(pos);
-					
-					Block gotBlock = block.getBlock();
-					
-					if(gotBlock == Blocks.BEDROCK || gotBlock == Blocks.NETHER_PORTAL)
+					blockMoves.add(new BlockMove(c, pos, pos1, Blocks.AIR.getDefaultState(), true));
+					return true;
+				}
+				else if(!creative && (gotBlock == Blocks.COMMAND_BLOCK || gotBlock == Blocks.CHAIN_COMMAND_BLOCK || gotBlock == Blocks.REPEATING_COMMAND_BLOCK))
+				{
+					player.sendStatusMessage(new StringTextComponent("You are not allowed to move command blocks."), false);
+					return false;
+				} else if(te instanceof ComputerTileEntity)		//If the block is a computer
+				{
+					if(!((ComputerTileEntity)te).owner.equals(IdentifierHandler.encode((PlayerEntity) player)))	//You can't Enter with someone else's computer
 					{
-						blockMoves.add(new BlockMove(c, pos, pos1, Blocks.AIR.getDefaultState(), true));
-						continue;
-					}
-					else if(!creative && (gotBlock == Blocks.COMMAND_BLOCK || gotBlock == Blocks.CHAIN_COMMAND_BLOCK || gotBlock == Blocks.REPEATING_COMMAND_BLOCK))
-					{
-						player.sendStatusMessage(new StringTextComponent("You are not allowed to move command blocks."), false);
+						player.sendStatusMessage(new StringTextComponent("You are not allowed to move other players' computers."), false);
 						return false;
-					} else if(te instanceof ComputerTileEntity)		//If the block is a computer
-					{
-						if(!((ComputerTileEntity)te).owner.equals(IdentifierHandler.encode((PlayerEntity) player)))	//You can't Enter with someone else's computer
-						{
-							player.sendStatusMessage(new StringTextComponent("You are not allowed to move other players' computers."), false);
-							return false;
-						}
-						
-						foundComputer = true;	//You have a computer in range. That means you're taking your computer with you when you Enter. Smart move.
 					}
 					
-					//Shouldn't this line check if the block is an edge block?
-					blockMoves.add(new BlockMove(c, pos, pos1, block, false));
+					foundComputer = true;	//You have a computer in range. That means you're taking your computer with you when you Enter. Smart move.
 				}
 				
-				//What does this code accomplish?
-				for(blockY += yDiff; blockY <= 255; blockY++)
-				{
-					//The first BlockPos isn't used for this operation.
-					blockMoves.add(new BlockMove(c, BlockPos.ZERO, new BlockPos(blockX + xDiff, blockY, blockZ + zDiff), Blocks.AIR.getDefaultState(), false));
-				}
+				//Shouldn't this line check if the block is an edge block?
+				blockMoves.add(new BlockMove(c, pos, pos1, block, false));
 			}
-		}
+			return true;
+		}))
+			return false;
 		
 		if(!foundComputer && MinestuckConfig.SERVER.needComputer.get())
 		{
@@ -379,20 +366,7 @@ public class EntryProcess
 	
 	private boolean canModifyEntryBlocks(World world, PlayerEntity player)
 	{
-		int x = (int) player.getPosX();
-		if(player.getPosX() < 0) x--;
-		int y = (int) player.getPosY();
-		int z = (int) player.getPosZ();
-		if(player.getPosZ() < 0) z--;
-		for(int blockX = x - artifactRange; blockX <= x + artifactRange; blockX++)
-		{
-			int zWidth = (int) Math.sqrt(artifactRange * artifactRange - (blockX - x) * (blockX - x));
-			for(int blockZ = z - zWidth; blockZ <= z + zWidth; blockZ++)
-				if(!world.isBlockModifiable(player, new BlockPos(blockX, y, blockZ)))
-					return false;
-		}
-		
-		return true;
+		return positioning.forEachXZTry(pos -> world.isBlockModifiable(player, pos));
 	}
 	
 	private static void copyBlockDirect(IWorld world, IChunk cSrc, IChunk cDst, int xSrc, int ySrc, int zSrc, int xDst, int yDst, int zDst)
@@ -469,13 +443,13 @@ public class EntryProcess
 	
 	private static class BlockMove
 	{
-		private final Chunk chunkFrom;
+		private final IChunk chunkFrom;
 		private final BlockPos source;
 		private final BlockPos dest;
 		private final BlockState block;
 		private final boolean update;
 		
-		BlockMove(Chunk c, BlockPos src, BlockPos dst, BlockState b, boolean u)
+		BlockMove(IChunk c, BlockPos src, BlockPos dst, BlockState b, boolean u)
 		{
 			chunkFrom = c;
 			source = src;
@@ -502,7 +476,7 @@ public class EntryProcess
 				copyBlockDirect(world, chunkFrom, chunkTo, source.getX(), source.getY(), source.getZ(), dest.getX(), dest.getY(), dest.getZ());
 			}
 			
-			TileEntity tileEntity = chunkFrom.getTileEntity(source, Chunk.CreateEntityType.CHECK);
+			TileEntity tileEntity = chunkFrom.getTileEntity(source);
 			TileEntity newTE = null;
 			if(tileEntity != null)
 			{
@@ -520,7 +494,7 @@ public class EntryProcess
 			
 			for(EntryBlockProcessing processing : blockProcessors)
 			{
-				processing.copyOver((ServerWorld) chunkFrom.getWorld(), source, world, dest, block, tileEntity, newTE);
+				processing.copyOver((ServerWorld) chunkFrom.getWorldForge(), source, world, dest, block, tileEntity, newTE);
 			}
 		}
 	}
