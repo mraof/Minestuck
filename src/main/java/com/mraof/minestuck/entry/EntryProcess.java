@@ -58,13 +58,6 @@ public class EntryProcess
 		blockProcessors.add(processing);
 	}
 	
-	private final int artifactRange = MinestuckConfig.SERVER.artifactRange.get();
-	
-	private int xDiff;
-	private int yDiff;
-	private int zDiff;
-	private int topY;
-	private BlockPos origin;
 	private EntryPositioning positioning;
 	private boolean creative;
 	private HashSet<BlockMove> blockMoves;
@@ -86,16 +79,7 @@ public class EntryProcess
 				{
 					ServerWorld oldWorld = (ServerWorld) player.world;
 					
-					int x = origin.getX();
-					int y = origin.getY();
-					int z = origin.getZ();
-					this.origin = player.getPosition();
-					positioning = new EntryPositioning.Default(origin);
-					
-					topY = MinestuckConfig.SERVER.adaptEntryBlockHeight.get() ? getTopHeight(oldWorld, x, y, z) : y + artifactRange;
-					yDiff = 127 - topY;
-					xDiff = 0 - x;
-					zDiff = 0 - z;
+					positioning = new EntryPositioning.Default(player.getPosition(), oldWorld);
 					
 					if(!canModifyEntryBlocks(player.world, player))
 					{
@@ -166,39 +150,37 @@ public class EntryProcess
 		
 		LOGGER.debug("Loading block movements...");
 		
+		BlockPos offset = positioning.getTeleportOffset();
 		if(!positioning.forEachBlockTry(pos -> {
-			if(pos.getY() <= topY)
+			pos = pos.toImmutable();
+			IChunk c = worldserver0.getChunk(pos);
+			BlockPos pos1 = pos.add(offset);
+			BlockState block = worldserver0.getBlockState(pos);
+			TileEntity te = worldserver0.getTileEntity(pos);
+			
+			Block gotBlock = block.getBlock();
+			
+			if(gotBlock == Blocks.BEDROCK || gotBlock == Blocks.NETHER_PORTAL)
 			{
-				IChunk c = worldserver0.getChunk(pos);
-				BlockPos pos1 = pos.add(xDiff, yDiff, zDiff);
-				BlockState block = worldserver0.getBlockState(pos);
-				TileEntity te = worldserver0.getTileEntity(pos);
-				
-				Block gotBlock = block.getBlock();
-				
-				if(gotBlock == Blocks.BEDROCK || gotBlock == Blocks.NETHER_PORTAL)
+				blockMoves.add(new BlockMove(c, pos, pos1, Blocks.AIR.getDefaultState(), true));
+				return true;
+			} else if(!creative && (gotBlock == Blocks.COMMAND_BLOCK || gotBlock == Blocks.CHAIN_COMMAND_BLOCK || gotBlock == Blocks.REPEATING_COMMAND_BLOCK))
+			{
+				player.sendStatusMessage(new StringTextComponent("You are not allowed to move command blocks."), false);
+				return false;
+			} else if(te instanceof ComputerTileEntity)        //If the block is a computer
+			{
+				if(!((ComputerTileEntity) te).owner.equals(IdentifierHandler.encode(player)))    //You can't Enter with someone else's computer
 				{
-					blockMoves.add(new BlockMove(c, pos, pos1, Blocks.AIR.getDefaultState(), true));
-					return true;
-				}
-				else if(!creative && (gotBlock == Blocks.COMMAND_BLOCK || gotBlock == Blocks.CHAIN_COMMAND_BLOCK || gotBlock == Blocks.REPEATING_COMMAND_BLOCK))
-				{
-					player.sendStatusMessage(new StringTextComponent("You are not allowed to move command blocks."), false);
+					player.sendStatusMessage(new StringTextComponent("You are not allowed to move other players' computers."), false);
 					return false;
-				} else if(te instanceof ComputerTileEntity)		//If the block is a computer
-				{
-					if(!((ComputerTileEntity)te).owner.equals(IdentifierHandler.encode((PlayerEntity) player)))	//You can't Enter with someone else's computer
-					{
-						player.sendStatusMessage(new StringTextComponent("You are not allowed to move other players' computers."), false);
-						return false;
-					}
-					
-					foundComputer = true;	//You have a computer in range. That means you're taking your computer with you when you Enter. Smart move.
 				}
 				
-				//Shouldn't this line check if the block is an edge block?
-				blockMoves.add(new BlockMove(c, pos, pos1, block, false));
+				foundComputer = true;    //You have a computer in range. That means you're taking your computer with you when you Enter. Smart move.
 			}
+			
+			//Shouldn't this line check if the block is an edge block?
+			blockMoves.add(new BlockMove(c, pos, pos1, block, false));
 			return true;
 		}))
 			return false;
@@ -236,9 +218,7 @@ public class EntryProcess
 	private void finalizeDestination(ServerPlayerEntity player, ServerWorld originWorld, ServerWorld landWorld)
 	{
 		{
-			int x = origin.getX();
-			int y = origin.getY();
-			int z = origin.getZ();
+			BlockPos offset = positioning.getTeleportOffset();
 			
 			LOGGER.debug("Teleporting entities...");
 			List<Entity> list = positioning.getOtherEntitiesToTeleport(player, originWorld);
@@ -252,7 +232,7 @@ public class EntryProcess
 						ServerEditHandler.reset(ServerEditHandler.getData((PlayerEntity) e));
 					else
 					{
-						Teleport.teleportEntity(e, landWorld, e.getPosX() + xDiff, e.getPosY() + yDiff, e.getPosZ() + zDiff);
+						Teleport.teleportEntity(e, landWorld, e.getPosX() + offset.getX(), e.getPosY() + offset.getY(), e.getPosZ() + offset.getZ());
 					}
 					//These entities should no longer be in the world, and this list is later used for entities that *should* remain.
 					iterator.remove();
@@ -266,7 +246,7 @@ public class EntryProcess
 						nbttagcompound.remove("Dimension");
 						newEntity.read(nbttagcompound);
 						newEntity.dimension = landWorld.getDimension().getType();
-						newEntity.setPosition(newEntity.getPosX() + xDiff, newEntity.getPosY() + yDiff, newEntity.getPosZ() + zDiff);
+						newEntity.setPosition(newEntity.getPosX() + offset.getX(), newEntity.getPosY() + offset.getY(), newEntity.getPosZ() + offset.getZ());
 						landWorld.addEntity(newEntity);
 					}
 				}
@@ -287,7 +267,7 @@ public class EntryProcess
 			}
 			blockMoves.clear();
 			
-			player.setPositionAndUpdate(player.getPosX() + xDiff, player.getPosY() + yDiff, player.getPosZ() + zDiff);
+			player.setPositionAndUpdate(player.getPosX() + offset.getX(), player.getPosY() + offset.getY(), player.getPosZ() + offset.getZ());
 			
 			//Remove entities that were generated in the process of teleporting entities and removing blocks.
 			// This is usually caused by "anchored" blocks being updated between the removal of their anchor and their own removal.
@@ -323,7 +303,7 @@ public class EntryProcess
 			LOGGER.debug("Placing gates...");
 			placeGates(landWorld);
 			
-			MSExtraData.get(landWorld).addPostEntryTask(new PostEntryTask(landWorld.getDimension().getType(), x + xDiff, y + yDiff, z + zDiff, artifactRange, (byte) 0));
+			MSExtraData.get(landWorld).addPostEntryTask(new PostEntryTask(landWorld.getDimension().getType(), positioning));
 			
 			MSDimensions.getLandInfo(landWorld).setSpawn(MathHelper.floor(player.getPosY()));
 			
@@ -395,32 +375,6 @@ public class EntryProcess
 		if(section == Chunk.EMPTY_SECTION)
 			section = c.getSections()[y] = new ChunkSection(y << 4);
 		return section;
-	}
-	
-	/**
-	 * Gives the Y-value of the highest non-air block within artifact range of the coordinates provided in the given world.
-	 */
-	private int getTopHeight(ServerWorld world, int x, int y, int z)
-	{
-		LOGGER.debug("Getting maxY..");
-		int maxY = y;
-		for(int blockX = x - artifactRange; blockX <= x + artifactRange; blockX++)
-		{
-			int zWidth = (int) Math.sqrt(artifactRange * artifactRange - (blockX - x) * (blockX - x));
-			for(int blockZ = z - zWidth; blockZ <= z + zWidth; blockZ++)
-			{
-				int height = (int) (Math.sqrt(artifactRange * artifactRange - (((blockX - x) * (blockX - x) + (blockZ - z) * (blockZ - z)) / 2F)));
-				for(int blockY = Math.min(255, y + height); blockY > maxY; blockY--)
-					if(!world.isAirBlock(new BlockPos(blockX, blockY, blockZ)))
-					{
-						maxY = blockY;
-						break;
-					}
-			}
-		}
-		
-		LOGGER.debug("maxY: {}", maxY);
-		return maxY;
 	}
 	
 	public static void placeGates(ServerWorld world)
