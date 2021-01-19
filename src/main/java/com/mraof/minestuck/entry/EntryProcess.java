@@ -91,9 +91,7 @@ public class EntryProcess
 					{
 						ServerWorld landWorld = Objects.requireNonNull(player.getServer()).getWorld(c.get().getClientDimension());
 						if(landWorld == null)
-						{
 							return;
-						}
 						
 						//Teleports the player to their home in the Medium, without any bells or whistles.
 						BlockPos pos = landWorld.getDimension().getSpawnPoint();
@@ -104,16 +102,12 @@ public class EntryProcess
 					
 					DimensionType landDimension = SkaianetHandler.get(player.world).prepareEntry(identifier);
 					if(landDimension == null)
-					{
 						player.sendMessage(new StringTextComponent("Something went wrong while creating your Land. More details in the server console."));
-					}
 					else
 					{
 						ServerWorld newWorld = Objects.requireNonNull(player.getServer()).getWorld(landDimension);
 						if(newWorld == null)
-						{
 							return;
-						}
 						
 						if(this.prepareDestination(player, oldWorld))
 						{
@@ -122,10 +116,7 @@ public class EntryProcess
 							{
 								finalizeDestination(player, oldWorld, newWorld);
 								SkaianetHandler.get(player.world).onEntry(identifier);
-							} else
-							{
-								player.sendMessage(new StringTextComponent("Entry failed. Unable to teleport you!"));
-							}
+							} else player.sendMessage(new StringTextComponent("Entry failed. Unable to teleport you!"));
 						}
 					}
 				}
@@ -139,7 +130,7 @@ public class EntryProcess
 	
 	private boolean foundComputer = false;
 	
-	private boolean prepareDestination(ServerPlayerEntity player, ServerWorld worldserver0)
+	private boolean prepareDestination(ServerPlayerEntity player, ServerWorld world)
 	{
 		
 		blockMoves = new HashSet<>();
@@ -151,38 +142,7 @@ public class EntryProcess
 		LOGGER.debug("Loading block movements...");
 		
 		BlockPos offset = positioning.getTeleportOffset();
-		if(!positioning.forEachBlockTry(pos -> {
-			pos = pos.toImmutable();
-			IChunk c = worldserver0.getChunk(pos);
-			BlockPos pos1 = pos.add(offset);
-			BlockState block = worldserver0.getBlockState(pos);
-			TileEntity te = worldserver0.getTileEntity(pos);
-			
-			Block gotBlock = block.getBlock();
-			
-			if(gotBlock == Blocks.BEDROCK || gotBlock == Blocks.NETHER_PORTAL)
-			{
-				blockMoves.add(new BlockMove(c, pos, pos1, Blocks.AIR.getDefaultState(), true));
-				return true;
-			} else if(!creative && (gotBlock == Blocks.COMMAND_BLOCK || gotBlock == Blocks.CHAIN_COMMAND_BLOCK || gotBlock == Blocks.REPEATING_COMMAND_BLOCK))
-			{
-				player.sendStatusMessage(new StringTextComponent("You are not allowed to move command blocks."), false);
-				return false;
-			} else if(te instanceof ComputerTileEntity)        //If the block is a computer
-			{
-				if(!((ComputerTileEntity) te).owner.equals(IdentifierHandler.encode(player)))    //You can't Enter with someone else's computer
-				{
-					player.sendStatusMessage(new StringTextComponent("You are not allowed to move other players' computers."), false);
-					return false;
-				}
-				
-				foundComputer = true;    //You have a computer in range. That means you're taking your computer with you when you Enter. Smart move.
-			}
-			
-			//Shouldn't this line check if the block is an edge block?
-			blockMoves.add(new BlockMove(c, pos, pos1, block, false));
-			return true;
-		}))
+		if(!positioning.forEachBlockTry(pos -> makeBlockMove(pos, world, player, offset)))
 			return false;
 		
 		if(!foundComputer && MinestuckConfig.SERVER.needComputer.get())
@@ -194,7 +154,41 @@ public class EntryProcess
 		return true;
 	}
 	
-	private void moveBlocks(ServerWorld worldserver0, ServerWorld worldserver1)
+	private boolean makeBlockMove(BlockPos pos, ServerWorld world, ServerPlayerEntity player, BlockPos offset)
+	{
+		pos = pos.toImmutable();
+		IChunk c = world.getChunk(pos);
+		BlockPos pos1 = pos.add(offset);
+		BlockState block = world.getBlockState(pos);
+		TileEntity te = world.getTileEntity(pos);
+		
+		Block gotBlock = block.getBlock();
+		
+		if(gotBlock == Blocks.BEDROCK || gotBlock == Blocks.NETHER_PORTAL)
+		{
+			blockMoves.add(new BlockMove(c, pos, pos1, Blocks.AIR.getDefaultState(), true));
+			return true;
+		} else if(!creative && (gotBlock == Blocks.COMMAND_BLOCK || gotBlock == Blocks.CHAIN_COMMAND_BLOCK || gotBlock == Blocks.REPEATING_COMMAND_BLOCK))
+		{
+			player.sendStatusMessage(new StringTextComponent("You are not allowed to move command blocks."), false);
+			return false;
+		} else if(te instanceof ComputerTileEntity)        //If the block is a computer
+		{
+			if(!((ComputerTileEntity) te).owner.equals(IdentifierHandler.encode(player)))    //You can't Enter with someone else's computer
+			{
+				player.sendStatusMessage(new StringTextComponent("You are not allowed to move other players' computers."), false);
+				return false;
+			}
+			
+			foundComputer = true;    //You have a computer in range. That means you're taking your computer with you when you Enter. Smart move.
+		}
+		
+		//Shouldn't this line check if the block is an edge block?
+		blockMoves.add(new BlockMove(c, pos, pos1, block, false));
+		return true;
+	}
+	
+	private void moveBlocks(ServerWorld originWorld, ServerWorld destinationWorld)
 	{
 		//This is split into two sections because moves that require block updates should happen after the ones that don't.
 		//This helps to ensure that "anchored" blocks like torches still have the blocks they are anchored to when they update.
@@ -204,111 +198,97 @@ public class EntryProcess
 		for(BlockMove move : blockMoves)
 		{
 			if(move.update)
-				move.copy(worldserver1, worldserver1.getChunk(move.dest));
+				move.copy(destinationWorld, destinationWorld.getChunk(move.dest));
 			else
 				blockMoves2.add(move);
 		}
 		for(BlockMove move : blockMoves2)
 		{
-			move.copy(worldserver1, worldserver1.getChunk(move.dest));
+			move.copy(destinationWorld, destinationWorld.getChunk(move.dest));
 		}
 		blockMoves2.clear();
 	}
 	
 	private void finalizeDestination(ServerPlayerEntity player, ServerWorld originWorld, ServerWorld landWorld)
 	{
+		LOGGER.debug("Teleporting entities...");
+		List<Entity> entitiesToKeep = teleportEntities(player, originWorld, landWorld);
+		
+		LOGGER.debug("Removing original blocks");
+		removeOriginalBlocks(originWorld);
+		
+		BlockPos offset = positioning.getTeleportOffset();
+		player.setPositionAndUpdate(player.getPosX() + offset.getX(), player.getPosY() + offset.getY(), player.getPosZ() + offset.getZ());
+		
+		//Remove entities that were generated in the process of teleporting entities and removing blocks.
+		// This is usually caused by "anchored" blocks being updated between the removal of their anchor and their own removal.
+		if(!creative || MinestuckConfig.SERVER.entryCrater.get())
 		{
-			BlockPos offset = positioning.getTeleportOffset();
-			
-			LOGGER.debug("Teleporting entities...");
-			List<Entity> list = positioning.getOtherEntitiesToTeleport(player, originWorld);
-			Iterator<Entity> iterator = list.iterator();
-			while (iterator.hasNext())
-			{
-				Entity e = iterator.next();
-				if(MinestuckConfig.SERVER.entryCrater.get() || e instanceof PlayerEntity || !creative && e instanceof ItemEntity)
-				{
-					if(e instanceof PlayerEntity && ServerEditHandler.getData((PlayerEntity) e) != null)
-						ServerEditHandler.reset(ServerEditHandler.getData((PlayerEntity) e));
-					else
-					{
-						Teleport.teleportEntity(e, landWorld, e.getPosX() + offset.getX(), e.getPosY() + offset.getY(), e.getPosZ() + offset.getZ());
-					}
-					//These entities should no longer be in the world, and this list is later used for entities that *should* remain.
-					iterator.remove();
-				} else    //Copy instead of teleport
-				{
-					Entity newEntity = e.getType().create(landWorld);
-					if(newEntity != null)
-					{
-						CompoundNBT nbttagcompound = new CompoundNBT();
-						e.writeWithoutTypeId(nbttagcompound);
-						nbttagcompound.remove("Dimension");
-						newEntity.read(nbttagcompound);
-						newEntity.dimension = landWorld.getDimension().getType();
-						newEntity.setPosition(newEntity.getPosX() + offset.getX(), newEntity.getPosY() + offset.getY(), newEntity.getPosZ() + offset.getZ());
-						landWorld.addEntity(newEntity);
-					}
-				}
-			}
-			
-			LOGGER.debug("Removing original blocks");
-			for(BlockMove move : blockMoves)
-			{
-				removeTileEntity(originWorld, move.source, creative);	//Tile entities need special treatment
-				
-				if(MinestuckConfig.SERVER.entryCrater.get() && originWorld.getBlockState(move.source).getBlock() != Blocks.BEDROCK)
-				{
-					if(move.update)
-						originWorld.setBlockState(move.source, Blocks.AIR.getDefaultState(), Constants.BlockFlags.DEFAULT);
-					else
-						originWorld.setBlockState(move.source, Blocks.AIR.getDefaultState(), Constants.BlockFlags.BLOCK_UPDATE);
-				}
-			}
-			blockMoves.clear();
-			
-			player.setPositionAndUpdate(player.getPosX() + offset.getX(), player.getPosY() + offset.getY(), player.getPosZ() + offset.getZ());
-			
-			//Remove entities that were generated in the process of teleporting entities and removing blocks.
-			// This is usually caused by "anchored" blocks being updated between the removal of their anchor and their own removal.
-			if(!creative || MinestuckConfig.SERVER.entryCrater.get())
-			{
-				LOGGER.debug("Removing entities left in the crater...");
-				List<Entity> removalList = positioning.getOtherEntitiesToTeleport(player, originWorld);
-				
-				//We check if the old list contains the entity, because that means it was there before the entities were teleported and blocks removed.
-				// This can be caused by them being outside the Entry radius but still within the AABB,
-				// Or by the player being in creative mode, or having entryCrater disabled, etc.
-				// Ultimately, this means that the entity has already been taken care of as much as it needs to be, and it is inappropriate to remove the entity.
-				removalList.removeAll(list);
-				
-				iterator = removalList.iterator();
-				if(MinestuckConfig.SERVER.entryCrater.get())
-				{
-					while (iterator.hasNext())
-					{
-						iterator.next().remove();
-					}
-				} else
-				{
-					while (iterator.hasNext())
-					{
-						Entity e = iterator.next();
-						if(e instanceof ItemEntity)
-							e.remove();
-					}
-				}
-			}
-			
-			LOGGER.debug("Placing gates...");
-			placeGates(landWorld);
-			
-			MSExtraData.get(landWorld).addPostEntryTask(new PostEntryTask(landWorld.getDimension().getType(), positioning));
-			
-			MSDimensions.getLandInfo(landWorld).setSpawn(MathHelper.floor(player.getPosY()));
-			
-			LOGGER.info("Entry finished");
+			LOGGER.debug("Removing entities left in the crater...");
+			removeCreatedEntities(originWorld, player, entitiesToKeep);
 		}
+		
+		LOGGER.debug("Placing gates...");
+		placeGates(landWorld);
+		
+		
+		MSExtraData.get(landWorld).addPostEntryTask(new PostEntryTask(landWorld.getDimension().getType(), positioning));
+		MSDimensions.getLandInfo(landWorld).setSpawn(MathHelper.floor(player.getPosY()));
+		
+		LOGGER.info("Entry finished");
+	}
+	
+	private List<Entity> teleportEntities(ServerPlayerEntity player, ServerWorld originWorld, ServerWorld landWorld)
+	{
+		BlockPos offset = positioning.getTeleportOffset();
+		List<Entity> list = positioning.getOtherEntitiesToTeleport(player, originWorld);
+		Iterator<Entity> iterator = list.iterator();
+		while (iterator.hasNext())
+		{
+			Entity e = iterator.next();
+			if(MinestuckConfig.SERVER.entryCrater.get() || e instanceof PlayerEntity || !creative && e instanceof ItemEntity)
+			{
+				if(e instanceof PlayerEntity && ServerEditHandler.getData((PlayerEntity) e) != null)
+					ServerEditHandler.reset(ServerEditHandler.getData((PlayerEntity) e));
+				else
+				{
+					Teleport.teleportEntity(e, landWorld, e.getPosX() + offset.getX(), e.getPosY() + offset.getY(), e.getPosZ() + offset.getZ());
+				}
+				//These entities should no longer be in the world, and this list is later used for entities that *should* remain.
+				iterator.remove();
+			} else    //Copy instead of teleport
+			{
+				Entity newEntity = e.getType().create(landWorld);
+				if(newEntity != null)
+				{
+					CompoundNBT nbttagcompound = new CompoundNBT();
+					e.writeWithoutTypeId(nbttagcompound);
+					nbttagcompound.remove("Dimension");
+					newEntity.read(nbttagcompound);
+					newEntity.dimension = landWorld.getDimension().getType();
+					newEntity.setPosition(newEntity.getPosX() + offset.getX(), newEntity.getPosY() + offset.getY(), newEntity.getPosZ() + offset.getZ());
+					landWorld.addEntity(newEntity);
+				}
+			}
+		}
+		return list;
+	}
+	
+	private void removeOriginalBlocks(ServerWorld originWorld)
+	{
+		for(BlockMove move : blockMoves)
+		{
+			removeTileEntity(originWorld, move.source, creative);	//Tile entities need special treatment
+			
+			if(MinestuckConfig.SERVER.entryCrater.get() && originWorld.getBlockState(move.source).getBlock() != Blocks.BEDROCK)
+			{
+				if(move.update)
+					originWorld.setBlockState(move.source, Blocks.AIR.getDefaultState(), Constants.BlockFlags.DEFAULT);
+				else
+					originWorld.setBlockState(move.source, Blocks.AIR.getDefaultState(), Constants.BlockFlags.BLOCK_UPDATE);
+			}
+		}
+		blockMoves.clear();
 	}
 	
 	/**
@@ -340,6 +320,34 @@ public class EntryProcess
 					((ComputerTileEntity) tileEntity).programData = new CompoundNBT();
 				else if(tileEntity instanceof TransportalizerTileEntity)
 					worldserver0.removeTileEntity(pos);
+			}
+		}
+	}
+	
+	private void removeCreatedEntities(ServerWorld originWorld, ServerPlayerEntity player, List<Entity> entitiesToKeep)
+	{
+		List<Entity> removalList = positioning.getOtherEntitiesToTeleport(player, originWorld);
+		
+		//We check if the old list contains the entity, because that means it was there before the entities were teleported and blocks removed.
+		// This can be caused by them being outside the Entry radius but still within the AABB,
+		// Or by the player being in creative mode, or having entryCrater disabled, etc.
+		// Ultimately, this means that the entity has already been taken care of as much as it needs to be, and it is inappropriate to remove the entity.
+		removalList.removeAll(entitiesToKeep);
+		
+		Iterator<Entity> iterator = removalList.iterator();
+		if(MinestuckConfig.SERVER.entryCrater.get())
+		{
+			while (iterator.hasNext())
+			{
+				iterator.next().remove();
+			}
+		} else
+		{
+			while (iterator.hasNext())
+			{
+				Entity e = iterator.next();
+				if(e instanceof ItemEntity)
+					e.remove();
 			}
 		}
 	}
