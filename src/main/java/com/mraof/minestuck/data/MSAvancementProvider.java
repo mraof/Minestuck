@@ -51,6 +51,7 @@ public class MSAvancementProvider implements IDataProvider
 	public static final String COMMUNE = "minestuck.commune";
 	public static final String BUGS = "minestuck.bugs";
 	public static final String SHADY_BUYER = "minestuck.shady_buyer";
+	public static final String LONG_TIME_COMING = "minestuck.long_time_coming";
 	
 	private static final Gson GSON = (new GsonBuilder()).setPrettyPrinting().create();
 	private final DataGenerator generator;
@@ -78,6 +79,7 @@ public class MSAvancementProvider implements IDataProvider
 		Advancement commune = Advancement.Builder.builder().withParent(entry).withDisplay(MSItems.STONE_SLAB, new TranslationTextComponent(title(COMMUNE)), new TranslationTextComponent(desc(COMMUNE)), null, FrameType.TASK, true, true, false).withRequirementsStrategy(IRequirementsStrategy.AND).withCriterion("talk_to_consort", ConsortTalkTrigger.Instance.any()).withCriterion("visit_village", PositionTrigger.Instance.forLocation(LocationPredicate.forFeature(MSFeatures.CONSORT_VILLAGE))).register(advancementSaver, Minestuck.MOD_ID+":minestuck/commune");
 		Advancement bugs = consumeBugCriteria(Advancement.Builder.builder().withParent(commune).withDisplay(MSItems.CHOCOLATE_BEETLE, new TranslationTextComponent(title(BUGS)), new TranslationTextComponent(desc(BUGS)), null, FrameType.TASK, true, true, false).withRequirementsStrategy(IRequirementsStrategy.OR)).register(advancementSaver, Minestuck.MOD_ID+":minestuck/bugs");
 		Advancement shadyBuyer = Advancement.Builder.builder().withParent(commune).withDisplay(MSItems.ROCK_COOKIE, new TranslationTextComponent(title(SHADY_BUYER)), new TranslationTextComponent(desc(SHADY_BUYER)), null, FrameType.TASK, true, true, false).withCriterion("buy_item", ConsortItemTrigger.Instance.forType(EnumConsort.MerchantType.SHADY)).register(advancementSaver, Minestuck.MOD_ID+":minestuck/shady_buyer");
+		Advancement longTimeComing = Advancement.Builder.builder().withParent(root).withDisplay(MSItems.SERVER_DISK, new TranslationTextComponent(title(LONG_TIME_COMING)), new TranslationTextComponent(desc(LONG_TIME_COMING)), null, FrameType.TASK, true, true, false).withCriterion("click_capsule", InventoryChangeTrigger.Instance.forItems(MSItems.SERVER_DISK)).register(advancementSaver, Minestuck.MOD_ID+":minestuck/long_time_coming");
 	}
 	
 	private static Advancement.Builder changeModusCriteria(Advancement.Builder builder)

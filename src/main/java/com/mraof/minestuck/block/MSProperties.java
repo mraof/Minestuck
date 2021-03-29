@@ -20,6 +20,7 @@ public class MSProperties
 	public static final BooleanProperty RED = BooleanProperty.create("red");
 	public static final BooleanProperty GREEN = BooleanProperty.create("green");
 	public static final BooleanProperty BLUE = BooleanProperty.create("blue");
+	public static final BooleanProperty UNACTIVATED = BooleanProperty.create("unactivated");
 	
 	public static final IntegerProperty COUNT_0_2 = IntegerProperty.create("count", 0, 2);
 	

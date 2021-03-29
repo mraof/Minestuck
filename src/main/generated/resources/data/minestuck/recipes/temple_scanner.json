@@ -1,0 +1,25 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    " i ",
+    "iei",
+    "crc"
+  ],
+  "key": {
+    "e": {
+      "item": "minestuck:energy_core"
+    },
+    "c": {
+      "item": "minestuck:raw_cruxite"
+    },
+    "i": {
+      "item": "minecraft:iron_ingot"
+    },
+    "r": {
+      "item": "minecraft:redstone"
+    }
+  },
+  "result": {
+    "item": "minestuck:temple_scanner"
+  }
+}

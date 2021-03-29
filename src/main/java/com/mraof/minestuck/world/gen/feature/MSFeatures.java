@@ -1,6 +1,7 @@
 package com.mraof.minestuck.world.gen.feature;
 
 import com.mraof.minestuck.Minestuck;
+import com.mraof.minestuck.world.gen.feature.structure.FrogTempleStructure;
 import com.mraof.minestuck.world.gen.feature.structure.GateStructure;
 import com.mraof.minestuck.world.gen.feature.structure.ImpDungeonStructure;
 import com.mraof.minestuck.world.gen.feature.structure.SmallRuinStructure;
@@ -23,6 +24,7 @@ import javax.annotation.Nonnull;
 public final class MSFeatures
 {
 	public static final GateStructure LAND_GATE = getNull();
+	public static final Structure<NoFeatureConfig> FROG_TEMPLE = getNull();
 	public static final Structure<NoFeatureConfig> SMALL_RUIN = getNull();
 	public static final Structure<NoFeatureConfig> IMP_DUNGEON = getNull();
 	public static final Structure<NoFeatureConfig> CONSORT_VILLAGE = getNull();
@@ -70,6 +72,7 @@ public final class MSFeatures
 		IForgeRegistry<Feature<?>> registry = event.getRegistry();
 		
 		registry.register(new GateStructure(NoFeatureConfig::deserialize).setRegistryName("land_gate"));
+		registry.register(new FrogTempleStructure(NoFeatureConfig::deserialize).setRegistryName("frog_temple"));
 		registry.register(new SmallRuinStructure(NoFeatureConfig::deserialize).setRegistryName("small_ruin"));
 		registry.register(new ImpDungeonStructure(NoFeatureConfig::deserialize).setRegistryName("imp_dungeon"));
 		registry.register(new ConsortVillageStructure(NoFeatureConfig::deserialize).setRegistryName("consort_village"));

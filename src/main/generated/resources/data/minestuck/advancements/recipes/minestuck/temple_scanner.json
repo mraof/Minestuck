@@ -2,16 +2,16 @@
   "parent": "minecraft:recipes/root",
   "rewards": {
     "recipes": [
-      "minestuck:client_disk"
+      "minestuck:temple_scanner"
     ]
   },
   "criteria": {
-    "has_raw_cruxite": {
+    "has_energy_core": {
       "trigger": "minecraft:inventory_changed",
       "conditions": {
         "items": [
           {
-            "item": "minestuck:raw_cruxite"
+            "item": "minestuck:energy_core"
           }
         ]
       }
@@ -19,13 +19,13 @@
     "has_the_recipe": {
       "trigger": "minecraft:recipe_unlocked",
       "conditions": {
-        "recipe": "minestuck:client_disk"
+        "recipe": "minestuck:temple_scanner"
       }
     }
   },
   "requirements": [
     [
-      "has_raw_cruxite",
+      "has_energy_core",
       "has_the_recipe"
     ]
   ]

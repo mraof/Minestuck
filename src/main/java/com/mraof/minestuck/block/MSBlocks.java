@@ -199,6 +199,10 @@ public class MSBlocks
 	public static final Block GLOWYSTONE_DUST = getNull();
 	public static final CassettePlayerBlock CASSETTE_PLAYER = getNull();
 	
+	//Loot Block
+	//public static final LotusTimeCapsuleBlock LOTUS_TIME_CAPSULE_BLOCK = getNull();
+	public static LotusTimeCapsuleMultiblock LOTUS_TIME_CAPSULE_BLOCK = new LotusTimeCapsuleMultiblock(Minestuck.MOD_ID);
+	
 	public static final FlowingFluidBlock OIL = getNull(), BLOOD = getNull(), BRAIN_JUICE = getNull();
 	public static final FlowingFluidBlock WATER_COLORS = getNull(), ENDER = getNull(), LIGHT_WATER = getNull();
 	
@@ -480,6 +484,8 @@ public class MSBlocks
 		registry.register(new GlowystoneWireBlock(Block.Properties.create(Material.MISCELLANEOUS).hardnessAndResistance(0.0F).lightValue(16).doesNotBlockMovement()).setRegistryName("glowystone_dust"));
 		registry.register(new DecorBlock(Block.Properties.create(Material.IRON).hardnessAndResistance(4.0F), MSBlockShapes.PARCEL_PYXIS).setRegistryName("parcel_pyxis"));
 		registry.register(new DecorBlock(Block.Properties.create(Material.IRON).hardnessAndResistance(1.0F), MSBlockShapes.PYXIS_LID).setRegistryName("pyxis_lid"));
+		
+		LOTUS_TIME_CAPSULE_BLOCK.registerBlocks(registry);
 		
 		registry.register(new FlowingModFluidBlock(MSFluids.OIL, new Vec3d(0.0, 0.0, 0.0), 0.75f, Block.Properties.create(Material.WATER).doesNotBlockMovement().hardnessAndResistance(100.0F).noDrops()).setRegistryName("oil"));
 		registry.register(new FlowingModFluidBlock(MSFluids.BLOOD, new Vec3d(0.8, 0.0, 0.0), 0.25f, Block.Properties.create(Material.WATER).doesNotBlockMovement().hardnessAndResistance(100.0F).noDrops()).setRegistryName("blood"));

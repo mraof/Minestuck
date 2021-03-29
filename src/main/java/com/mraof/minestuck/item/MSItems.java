@@ -49,6 +49,7 @@ public class MSItems
 	public static final MultiblockItem TOTEM_LATHE = getNull();
 	public static final MultiblockItem ALCHEMITER = getNull();
 	public static final MultiblockItem PUNCH_DESIGNIX = getNull();
+	public static final MultiblockItem LOTUS_TIME_CAPSULE = getNull();
 	
 	//hammers
 	public static final Item CLAW_HAMMER = getNull();
@@ -369,6 +370,7 @@ public class MSItems
 	public static final Item ICE_SHARD = getNull();
 	public static final Item HORN = getNull();
 	public static final Item CAKE_MIX = getNull();
+	public static final Item TEMPLE_SCANNER = getNull();
 	
 	public static final Item SCALEMATE_APPLESCAB = getNull();
 	public static final Item SCALEMATE_BERRYBREATH = getNull();
@@ -676,6 +678,8 @@ public class MSItems
 		registerItemBlock(registry, MINI_FROG_STATUE, MSItemGroup.MAIN);
 		registerItemBlock(registry, MINI_WIZARD_STATUE, MSItemGroup.MAIN);
 		registerItemBlock(registry, CASSETTE_PLAYER, MSItemGroup.MAIN);
+		
+		registry.register(new MultiblockItem(MSBlocks.LOTUS_TIME_CAPSULE_BLOCK, new Item.Properties().group(MSItemGroup.MAIN)).setRegistryName("lotus_time_capsule"));
 		
 		registerItemBlock(registry, GLOWYSTONE_DUST, MSItemGroup.MAIN);
 		
@@ -994,6 +998,7 @@ public class MSItems
 		registry.register(new Item(new Item.Properties().group(MSItemGroup.MAIN)).setRegistryName("ice_shard"));
 		registry.register(new SoundItem(() -> MSSoundEvents.ITEM_HORN_USE, new Item.Properties().group(MSItemGroup.MAIN)).setRegistryName("horn"));
 		registry.register(new Item(new Item.Properties().group(MSItemGroup.MAIN)).setRegistryName("cake_mix"));
+		registry.register(new TempleScannerItem(new Item.Properties().group(MSItemGroup.MAIN).maxStackSize(1)).setRegistryName("temple_scanner"));
 		registry.register(new Item(new Item.Properties().group(MSItemGroup.MAIN)).setRegistryName("battery"));
 		registry.register(new Item(new Item.Properties().group(MSItemGroup.MAIN)).setRegistryName("barbasol"));
 		registry.register(new Item(new Item.Properties().group(MSItemGroup.MAIN)).setRegistryName("clothes_iron"));

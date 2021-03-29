@@ -1,0 +1,35 @@
+{
+  "parent": "minestuck:minestuck/root",
+  "display": {
+    "icon": {
+      "item": "minestuck:server_disk"
+    },
+    "title": {
+      "translate": "advancements.minestuck.long_time_coming.title"
+    },
+    "description": {
+      "translate": "advancements.minestuck.long_time_coming.description"
+    },
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "click_capsule": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "item": "minestuck:server_disk"
+          }
+        ]
+      }
+    }
+  },
+  "requirements": [
+    [
+      "click_capsule"
+    ]
+  ]
+}
