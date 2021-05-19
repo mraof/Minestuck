@@ -1,0 +1,6 @@
+{
+    "parent": "minestuck:item/flaming_bow",
+    "textures": {
+        "layer0": "minestuck:item/flaming_bow_pulling_2"
+    }
+}

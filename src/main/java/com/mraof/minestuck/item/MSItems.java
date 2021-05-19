@@ -251,6 +251,11 @@ public class MSItems
 	public static final Item UMBRAL_INFILTRATOR = getNull();
 	public static final Item SORCERERS_PINBALL = getNull();
 	
+	//bows
+	public static final Item FLAMING_BOW = getNull();
+	public static final Item SNIPER_BOW = getNull();
+	public static final Item QUICK_DRAW_BOW = getNull();
+	
 	//Material tools
 	public static final Item EMERALD_SWORD = getNull();
 	public static final Item EMERALD_AXE = getNull();
@@ -924,6 +929,11 @@ public class MSItems
 		registry.register(new ReturningProjectileWeaponItem(new Item.Properties().group(MSItemGroup.WEAPONS).maxDamage(250), 1.3F, 1.0F,5, 30).setRegistryName("chakram"));
 		registry.register(new ReturningProjectileWeaponItem(new Item.Properties().group(MSItemGroup.WEAPONS).maxDamage(2048), 1.5F, 0.6F,12, 20).setRegistryName("umbral_infiltrator"));
 		registry.register(new BouncingProjectileWeaponItem(new Item.Properties().group(MSItemGroup.WEAPONS).maxDamage(250), 1.5F, 1.0F,5, 20).setRegistryName("sorcerers_pinball"));
+		
+		//bows
+		registry.register(new CustomBow(new Item.Properties().group(MSItemGroup.WEAPONS).defaultMaxDamage(600), CustomBow.Type.FLAME).setRegistryName("flaming_bow"));
+		registry.register(new CustomBow(new Item.Properties().group(MSItemGroup.WEAPONS).defaultMaxDamage(600), CustomBow.Type.LONG).setRegistryName("sniper_bow"));
+		registry.register(new CustomBow(new Item.Properties().group(MSItemGroup.WEAPONS).defaultMaxDamage(600), CustomBow.Type.QUICK).setRegistryName("quick_draw_bow"));
 		
 		registry.register(new SwordItem(MSItemTypes.EMERALD_TIER, 3, -2.4F, new Item.Properties().group(MSItemGroup.WEAPONS)).setRegistryName("emerald_sword"));
 		registry.register(new AxeItem(MSItemTypes.EMERALD_TIER, 5, -3.0F, new Item.Properties().group(MSItemGroup.WEAPONS)).setRegistryName("emerald_axe"));
