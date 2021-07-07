@@ -42,7 +42,7 @@ public class LotusFlowerPacket implements PlayToClientPacket
 		Entity entity = Minecraft.getInstance().world.getEntityByID(entityID);
 		if(entity instanceof LotusFlowerEntity)
 		{
-			((LotusFlowerEntity) entity).timerSetPacketUpdate(animation);
+			((LotusFlowerEntity) entity).setAnimationFromPacket(animation);
 		}
 	}
 }
