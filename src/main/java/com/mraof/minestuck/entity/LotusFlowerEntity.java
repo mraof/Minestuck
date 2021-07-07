@@ -3,9 +3,12 @@ package com.mraof.minestuck.entity;
 import com.mraof.minestuck.item.MSItems;
 import com.mraof.minestuck.network.LotusFlowerPacket;
 import com.mraof.minestuck.network.MSPacketHandler;
-import net.minecraft.entity.*;
+import net.minecraft.entity.EntityType;
+import net.minecraft.entity.LivingEntity;
+import net.minecraft.entity.MoverType;
 import net.minecraft.entity.item.ItemEntity;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.inventory.EquipmentSlotType;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.nbt.CompoundNBT;
@@ -13,13 +16,13 @@ import net.minecraft.network.IPacket;
 import net.minecraft.network.PacketBuffer;
 import net.minecraft.particles.ParticleTypes;
 import net.minecraft.util.Hand;
+import net.minecraft.util.HandSide;
 import net.minecraft.util.SoundCategory;
 import net.minecraft.util.SoundEvents;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.util.text.TranslationTextComponent;
-import net.minecraft.world.DifficultyInstance;
-import net.minecraft.world.IWorld;
 import net.minecraft.world.World;
+import net.minecraftforge.common.util.Constants;
 import net.minecraftforge.fml.common.registry.IEntityAdditionalSpawnData;
 import net.minecraftforge.fml.network.NetworkHooks;
 import software.bernie.geckolib3.core.IAnimatable;
@@ -31,9 +34,9 @@ import software.bernie.geckolib3.core.manager.AnimationData;
 import software.bernie.geckolib3.core.manager.AnimationFactory;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
+import java.util.Collections;
 
-public class LotusFlowerEntity extends CreatureEntity implements IAnimatable, IEntityAdditionalSpawnData
+public class LotusFlowerEntity extends LivingEntity implements IAnimatable, IEntityAdditionalSpawnData
 {
 	private static final int RESTORATION_TIME = 10000; //500 seconds from animation start to flower restoration
 	
@@ -56,13 +59,15 @@ public class LotusFlowerEntity extends CreatureEntity implements IAnimatable, IE
 	
 	public static final String REGROW = "minestuck.lotusflowerentity.regrow";
 	
-	@Nonnull
 	// Specifies the current animation phase
+	@Nonnull
 	private Animation animation = Animation.IDLE;
 	
-	protected LotusFlowerEntity(EntityType<? extends CreatureEntity> type, World worldIn)
+	protected LotusFlowerEntity(EntityType<? extends LotusFlowerEntity> type, World worldIn)
 	{
 		super(type, worldIn);
+		
+		setInvulnerable(true);
 	}
 	
 	private <E extends IAnimatable> PlayState predicate(AnimationEvent<E> event)
@@ -85,7 +90,7 @@ public class LotusFlowerEntity extends CreatureEntity implements IAnimatable, IE
 	}
 	
 	@Override
-	protected boolean processInteract(PlayerEntity player, Hand hand)
+	public boolean processInitialInteract(PlayerEntity player, Hand hand)
 	{
 		if(isAlive() && !player.isSneaking() && animation == Animation.IDLE)
 		{
@@ -106,7 +111,7 @@ public class LotusFlowerEntity extends CreatureEntity implements IAnimatable, IE
 			
 			return true;
 		} else
-			return super.processInteract(player, hand);
+			return super.processInitialInteract(player, hand);
 	}
 	
 	
@@ -196,12 +201,6 @@ public class LotusFlowerEntity extends CreatureEntity implements IAnimatable, IE
 	}
 	
 	@Override
-	public boolean canDespawn(double distanceToClosestPlayer)
-	{
-		return false;
-	}
-	
-	@Override
 	public void writeAdditional(CompoundNBT compound)
 	{
 		super.writeAdditional(compound);
@@ -214,8 +213,11 @@ public class LotusFlowerEntity extends CreatureEntity implements IAnimatable, IE
 	{
 		super.readAdditional(compound);
 		
-		eventTimer = compound.getInt("EventTimer");
-		animation = animationFromEventTimer();
+		if(compound.contains("EventTimer", Constants.NBT.TAG_ANY_NUMERIC))
+		{
+			eventTimer = compound.getInt("EventTimer");
+			animation = animationFromEventTimer();
+		}
 	}
 	
 	@Override
@@ -253,17 +255,36 @@ public class LotusFlowerEntity extends CreatureEntity implements IAnimatable, IE
 		this.world.playSound(posVec.getX(), posVec.getY(), posVec.getZ(), SoundEvents.BLOCK_BEEHIVE_EXIT, SoundCategory.NEUTRAL, 1.0F, 1.0F, false);
 	}
 	
-	@Nullable
 	@Override
-	public ILivingEntityData onInitialSpawn(IWorld worldIn, DifficultyInstance difficultyIn, SpawnReason reason, @Nullable ILivingEntityData spawnDataIn, @Nullable CompoundNBT dataTag)
+	protected boolean canTriggerWalking()
 	{
-		
-		this.entityCollisionReduction = 1F;
-		this.setInvulnerable(true);
-		this.setNoAI(true);
-		this.enablePersistence();
-		
-		return super.onInitialSpawn(worldIn, difficultyIn, reason, spawnDataIn, dataTag);
+		return false;
+	}
+	
+	@Override
+	public void move(MoverType typeIn, Vec3d pos)
+	{}
+	
+	@Override
+	public Iterable<ItemStack> getArmorInventoryList()
+	{
+		return Collections.emptyList();
+	}
+	
+	@Override
+	public ItemStack getItemStackFromSlot(EquipmentSlotType slotIn)
+	{
+		return ItemStack.EMPTY;
+	}
+	
+	@Override
+	public void setItemStackToSlot(EquipmentSlotType slotIn, ItemStack stack)
+	{}
+	
+	@Override
+	public HandSide getPrimaryHand()
+	{
+		return HandSide.RIGHT;
 	}
 	
 	public enum Animation

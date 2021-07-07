@@ -116,9 +116,6 @@ public class FrogTemplePiece extends ScatteredStructurePiece
 			LotusFlowerEntity lotusFlowerEntity = MSEntityTypes.LOTUS_FLOWER.create(worldIn.getWorld());
 			if(lotusFlowerEntity == null)
 				throw new IllegalStateException("Unable to create a new lotus flower. Entity factory returned null!");
-			lotusFlowerEntity.enablePersistence();
-			lotusFlowerEntity.setNoAI(true);
-			lotusFlowerEntity.setInvulnerable(true);
 			lotusFlowerEntity.setLocationAndAngles(this.getXWithOffset(21 + 20, 21 + 38 + 20), this.getYWithOffset(50), this.getZWithOffset(21 + 20, 21 + 38 + 20), 0F, 0);
 			//lotusFlowerEntity.setLocationAndAngles(lotusBlockPos.getX(), this.getYWithOffset(50), lotusBlockPos.getZ(), 0F, 0);
 			worldIn.addEntity(lotusFlowerEntity);
